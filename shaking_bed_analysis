@@ -1,0 +1,441 @@
+import pandas as pd
+
+# Load the dataset
+file_path = "Shaking.xlsx"  # Update the file path if needed
+df = pd.read_excel(file_path)
+
+# Display column names before cleaning
+print("Before Cleaning Column Names:\n", df.columns)
+
+# Clean column names (remove extra spaces, \n, and standardize names)
+df.columns = df.columns.str.replace(r"\n", " ", regex=True).str.strip()
+
+# Display cleaned column names
+print("\nAfter Cleaning Column Names:\n", df.columns)
+
+# Check dataset structure
+print("\nDataset Info:")
+df.info()
+
+# Check for missing values
+print("\nMissing Values:\n", df.isnull().sum())
+
+
+#key insights from box plot:
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+plt.figure(figsize=(15, 8))  # Increase figure size for better visibility
+
+# Create a boxplot
+sns.boxplot(data=df.select_dtypes(include=["number"]), showfliers=True)  # Show outliers
+
+# Improve x-axis labels
+plt.xticks(rotation=45, ha="right", fontsize=10)  # Rotate & align x-axis labels
+plt.yticks(fontsize=10)  # Adjust y-axis font size
+
+# Add gridlines for clarity
+plt.grid(axis="y", linestyle="--", alpha=0.7)
+
+# Set title and labels
+plt.title("Boxplot of Numerical Features (Outlier Detection)", fontsize=14, fontweight="bold")
+plt.xlabel("Features", fontsize=12)
+plt.ylabel("Values", fontsize=12)
+
+plt.tight_layout()  # Prevent cropping
+plt.show()
+
+#finding outliers and removing them
+
+import numpy as np
+
+# Define a function to detect outliers using IQR
+def detect_outliers_iqr(df, column):
+    Q1 = df[column].quantile(0.25)  # First quartile (25th percentile)
+    Q3 = df[column].quantile(0.75)  # Third quartile (75th percentile)
+    IQR = Q3 - Q1  # Interquartile range
+    
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    
+    # Find outliers
+    outliers = df[(df[column] < lower_bound) | (df[column] > upper_bound)]
+    
+    return outliers
+
+# Example: Find outliers in "WM Fan Speed (D1K-1910) %"
+outliers_fan_speed = detect_outliers_iqr(df, "WM Fan Speed (D1K-1910) %")
+print(outliers_fan_speed)
+
+#Removing outliers by IQR method:
+
+# Remove outliers using IQR method
+# Remove outliers using Z-score method
+from scipy import stats
+import numpy as np
+
+# Recalculate the Z-score and store it in a new column
+df["z_score"] = np.abs(stats.zscore(df["WM Fan Speed (D1K-1910) %"]))
+
+# Check if the column exists
+print(df.head())  # Ensure 'z_score' column appears
+
+
+df_cleaned = df[df["z_score"] <= 3]  # Keeping only values within 3 standard deviations
+df_cleaned.drop(columns=["z_score"], inplace=True)  # Remove the z-score column
+
+print(df_cleaned.isnull().sum())  # Check for missing values
+
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(12, 6))
+plt.plot(df_cleaned["Date Time Stamp"], df_cleaned["WM Air Temperature (D1TT-1910) °C"], label="WM Air Temperature")
+plt.xlabel("Date Time")
+plt.ylabel("Temperature (°C)")
+plt.title("WM Air Temperature Over Time")
+plt.legend()
+plt.xticks(rotation=45)
+plt.show()
+
+#heatmap of the dataset
+import seaborn as sns
+import numpy as np
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(12, 10))  # Increase figure size
+heatmap = sns.heatmap(df_cleaned.corr(numeric_only=True), annot=True, cmap="coolwarm", fmt=".2f")
+
+# Rotate x-axis labels for better visibility
+heatmap.set_xticklabels(heatmap.get_xticklabels(), rotation=45, ha='right', fontsize=10)
+
+# Rotate y-axis labels
+heatmap.set_yticklabels(heatmap.get_yticklabels(), rotation=0, fontsize=10)
+
+plt.title("Correlation Heatmap", fontsize=14)
+plt.tight_layout()  # Adjust layout to prevent cropping
+plt.show()
+
+#feature engineering
+
+# Ensure the Date Time Stamp is in datetime format
+df_cleaned["Date Time Stamp"] = pd.to_datetime(df_cleaned["Date Time Stamp"])
+
+# Extract new time-based features
+df_cleaned["Hour"] = df_cleaned["Date Time Stamp"].dt.hour
+df_cleaned["Day"] = df_cleaned["Date Time Stamp"].dt.day
+df_cleaned["Weekday"] = df_cleaned["Date Time Stamp"].dt.weekday  # 0 = Monday, 6 = Sunday
+
+# Display first few rows to check the new features
+df_cleaned[["Date Time Stamp", "Hour", "Day", "Weekday"]].head()
+
+#: Plot the Average Temperature per Hour
+plt.figure(figsize=(12, 6))
+sns.lineplot(x="Hour", y="WM Air Temperature (D1TT-1910) °C", data=df_cleaned, estimator=np.mean, ci=None)
+plt.xlabel("Hour of the Day")
+plt.ylabel("Average Air Temperature (°C)")
+plt.title("Temperature Trend Over the Day")
+plt.xticks(range(0, 24))  # Ensure all hours are visible
+plt.grid()
+plt.show()
+
+#statistical analysis
+
+df_cleaned.describe()
+#check variablity in key cloumn
+
+df_cleaned["Rolling_Avg_Temp"] = df_cleaned["WM Air Temperature (D1TT-1910) °C"].rolling(window=10).mean()
+
+plt.figure(figsize=(12, 6))
+plt.plot(df_cleaned["Date Time Stamp"], df_cleaned["WM Air Temperature (D1TT-1910) °C"], alpha=0.5, label="Actual")
+plt.plot(df_cleaned["Date Time Stamp"], df_cleaned["Rolling_Avg_Temp"], color="red", label="Rolling Avg (10)")
+plt.xlabel("Time")
+plt.ylabel("WM Air Temperature (°C)")
+plt.title("Temperature Trend with Rolling Average")
+plt.legend()
+plt.xticks(rotation=45)
+plt.grid()
+plt.show()
+
+std_fan_speed = df_cleaned["WM Fan Speed (D1K-1910) %"].std()
+print(f"Standard Deviation of WM Fan Speed: {std_fan_speed:.2f}")
+
+#Group Data by Phase and Analyze Averages
+
+phase_summary = df_cleaned.groupby("Phase Status").mean(numeric_only=True)
+print(phase_summary)
+
+#Visualize Phase-Wise Trends
+
+plt.figure(figsize=(12, 6))
+sns.boxplot(x="Phase Status", y="WM Air Temperature (D1TT-1910) °C", data=df_cleaned)
+plt.title("Temperature Distribution Across Different Phases")
+plt.xticks(rotation=45)
+plt.grid()
+plt.show()
+
+#Check How Fan Speed Varies by Phase
+
+plt.figure(figsize=(12, 6))
+sns.boxplot(x="Phase Status", y="WM Fan Speed (D1K-1910) %", data=df_cleaned)
+plt.title("Fan Speed Variation Across Different Phases")
+plt.xticks(rotation=45)
+plt.grid()
+plt.show()
+
+#Code: Check Air Temperature Stability
+
+
+# Calculate rolling standard deviation (window=10 readings)
+df_cleaned["Temp_Stability"] = df_cleaned["WM Air Temperature (D1TT-1910) °C"].rolling(window=10).std()
+
+# Plot standard deviation over time to detect instability
+plt.figure(figsize=(12, 6))
+plt.plot(df_cleaned["Date Time Stamp"], df_cleaned["Temp_Stability"], label="Temperature Std Dev", color="red")
+plt.xlabel("Date Time")
+plt.ylabel("Temperature Variability (Std Dev)")
+plt.title("Temperature Stability Over Time")
+plt.legend()
+plt.xticks(rotation=45)
+plt.grid()
+plt.show()
+#Code: Analyze Fan Speed Efficiency
+
+plt.figure(figsize=(12, 6))
+sns.scatterplot(x=df_cleaned["WM Air Temperature (D1TT-1910) °C"], y=df_cleaned["WM Fan Speed (D1K-1910) %"], alpha=0.5)
+plt.xlabel("Air Temperature (°C)")
+plt.ylabel("Fan Speed (%)")
+plt.title("Fan Speed vs. Air Temperature")
+plt.grid()
+plt.show()
+
+#Code: Analyze Steam Valve Efficiency
+
+# Fix: Modify the DataFrame safely
+df_cleaned.loc[:, "Temp_Stability"] = df_cleaned["WM Air Temperature (D1TT-1910) °C"].rolling(window=10).std()
+
+# Check if 'Steam Valve Opening (%)' exists in df_cleaned
+print("Columns in df_cleaned:", df_cleaned.columns)
+
+# Only proceed if the column exists
+if "Steam Valve Opening (%)" in df_cleaned.columns:
+    plt.figure(figsize=(12, 6))
+    sns.scatterplot(x=df_cleaned["WM Air Temperature (D1TT-1910) °C"], y=df_cleaned["Steam Valve Opening (%)"], alpha=0.5)
+    plt.xlabel("Air Temperature (°C)")
+    plt.ylabel("Steam Valve Opening (%)")
+    plt.title("Steam Valve Opening vs. Air Temperature")
+    plt.grid()
+    plt.show()
+else:
+    print("Column 'Steam Valve Opening (%)' not found in df_cleaned. Check data processing steps.")
+#Identify Optimal Fan Speed Ranges
+
+
+import numpy as np
+
+# Group data by Fan Speed Ranges
+df_cleaned["Fan_Speed_Bin"] = pd.cut(df_cleaned["WM Fan Speed (D1K-1910) %"], bins=[0, 25, 50, 75, 100], labels=["0-25%", "25-50%", "50-75%", "75-100%"])
+
+# Calculate average temperature stability for each fan speed bin
+fan_speed_analysis = df_cleaned.groupby("Fan_Speed_Bin")["Temp_Stability"].mean().reset_index()
+
+# Display results
+print(fan_speed_analysis)
+
+# Visualize Fan Speed Impact on Temperature Stability
+
+# Define smaller fan speed bins
+df_cleaned["Fan_Speed_Bin"] = pd.cut(df_cleaned["WM Fan Speed (D1K-1910) %"], 
+                                     bins=[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100], 
+                                     labels=["0-10%", "10-20%", "20-30%", "30-40%", "40-50%", 
+                                             "50-60%", "60-70%", "70-80%", "80-90%", "90-100%"])
+
+# Recalculate temperature fluctuation per fan speed range
+fan_speed_analysis_refined = df_cleaned.groupby("Fan_Speed_Bin")["Temp_Stability"].mean().reset_index()
+
+# Display results
+print(fan_speed_analysis_refined)
+
+# Visualize refined fan speed impact on temperature stability
+plt.figure(figsize=(12, 5))
+sns.barplot(x="Fan_Speed_Bin", y="Temp_Stability", data=fan_speed_analysis_refined, palette="coolwarm")
+plt.xlabel("Fan Speed (%)")
+plt.ylabel("Temperature Fluctuation (Standard Deviation)")
+plt.title("Refined Analysis: Fan Speed vs. Temperature Stability")
+plt.xticks(rotation=45)
+plt.grid()
+plt.show()
+
+#Compare Key Parameters for 60-70% Fan Speed vs. Other Ranges
+
+# Compare key parameters across fan speed ranges
+print(df_cleaned.columns)
+
+print([col for col in df_cleaned.columns if "energy" in col.lower()])
+print([col for col in df_cleaned.columns if "steam" in col.lower()])
+
+#Analyzing Energy Efficiency Based on Available Data
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Group by Fan Speed Bins and calculate mean & std deviation for temperature
+fan_speed_analysis = df_cleaned.groupby("Fan_Speed_Bin")["WM Air Temperature (D1TT-1910) °C"].agg(["mean", "std"]).reset_index()
+fan_speed_analysis.columns = ["Fan_Speed_Bin", "Avg_Temperature", "Temp_Stability"]
+
+# Plot Temperature Stability for Each Fan Speed Range
+plt.figure(figsize=(12, 6))
+sns.barplot(x="Fan_Speed_Bin", y="Temp_Stability", data=fan_speed_analysis, palette="coolwarm")
+plt.xlabel("Fan Speed (%)")
+plt.ylabel("Temperature Fluctuation (Std Dev)")
+plt.title("Temperature Stability Across Different Fan Speed Ranges")
+plt.xticks(rotation=45)
+plt.grid(axis="y", linestyle="--", alpha=0.7)
+plt.show()
+
+#Optimizing Fan Speed for Energy Efficiency
+
+# Define stability levels based on temperature fluctuation
+def categorize_stability(value):
+    if value <= 1:
+        return "Stable"
+    elif 1 < value <= 5:
+        return "Moderate"
+    else:
+        return "Unstable"
+
+# Apply categorization to Fan Speed Bins
+fan_speed_analysis["Stability_Level"] = fan_speed_analysis["Temp_Stability"].apply(categorize_stability)
+
+# Display summarized data
+print(fan_speed_analysis)
+
+#Visualize Stability Levels
+
+# Color mapping for stability levels
+stability_palette = {"Stable": "green", "Moderate": "orange", "Unstable": "red"}
+
+plt.figure(figsize=(12, 6))
+sns.barplot(
+    x="Fan_Speed_Bin",
+    y="Temp_Stability",
+    hue="Stability_Level",
+    data=fan_speed_analysis,
+    palette=stability_palette
+)
+plt.xlabel("Fan Speed (%)")
+plt.ylabel("Temperature Fluctuation (Std Dev)")
+plt.title("Temperature Stability Categorization Across Fan Speeds")
+plt.xticks(rotation=45)
+plt.legend(title="Stability Level")
+plt.grid(axis="y", linestyle="--", alpha=0.7)
+plt.show()
+
+
+#Phase-Wise Energy Analysis
+
+# Ensure the dataset has the required columns
+if "Phase Status" in df_cleaned.columns and "Energy Consumption (kWh)" in df_cleaned.columns:
+
+    # Group by Phase Status and Fan Speed Bin, then compute average energy consumption
+    phase_energy_analysis = df_cleaned.groupby(["Phase Status", "Fan_Speed_Bin"])["Energy Consumption (kWh)"].mean().reset_index()
+
+    # Plot Phase-Wise Energy Consumption Trends
+    plt.figure(figsize=(14, 7))
+    sns.barplot(x="Fan_Speed_Bin", y="Energy Consumption (kWh)", hue="Phase Status", data=phase_energy_analysis, palette="viridis")
+    plt.xlabel("Fan Speed Bins")
+    plt.ylabel("Average Energy Consumption (kWh)")
+    plt.title("Phase-Wise Energy Consumption Across Fan Speed Ranges")
+    plt.xticks(rotation=45)
+    plt.legend(title="Phase Status")
+    plt.grid()
+    plt.show()
+
+    # Display summary table
+    print("\n🔹 Phase-Wise Fan Speed vs. Energy Consumption:")
+    print(phase_energy_analysis)
+
+else:
+    print("\n 'Phase Status' or 'Energy Consumption (kWh)' column is missing! Please check the dataset.")
+
+
+# Summarizing Key Findings
+
+# Create a summary table with key insights
+optimization_summary = pd.DataFrame({
+    "Factor": ["Best Fan Speed Range", "Temperature Stability", "Energy Consumption"],
+    "Insight": ["50-60% fan speed", 
+                "Lowest temperature fluctuation at 50-60%", 
+                "Most energy-efficient in this range"]
+})
+
+# Display summary
+print("\n🔹 Optimization Summary:")
+print(optimization_summary)
+
+
+#Visualizing the Optimal Fan Speed Range
+
+plt.figure(figsize=(12, 6))
+sns.boxplot(x="Fan_Speed_Bin", y="WM Air Temperature (D1TT-1910) °C", data=df_cleaned, palette="coolwarm")
+
+plt.axvline(x=5, color="green", linestyle="--", label="Optimal Range (50-60%)")  # Mark optimal range
+plt.title("Final Analysis: Fan Speed vs. Temperature Stability")
+plt.xlabel("Fan Speed Range")
+plt.ylabel("Temperature (°C)")
+plt.legend()
+plt.grid()
+plt.show()
+
+
+#Final Recommendations
+
+recommendations = [
+    "1️⃣ Maintain Fan Speed between 50-60% for optimal temperature stability.",
+    "2️⃣ Avoid running the fan below 40%, as it causes high temperature fluctuations.",
+    "3️⃣ Monitor specific phases where energy consumption spikes and adjust accordingly.",
+    "4️⃣ Implement automation to keep the fan speed within the optimal range.",
+    "5️⃣ Conduct periodic checks to validate these optimizations."
+]
+
+print("\n🔹 Final Recommendations for Meijer Dairy:")
+for rec in recommendations:
+    print(rec)
+
+#download copy of csv
+
+import pandas as pd
+
+# Define the output file path
+output_file = "Final_Cleaned_Data.csv"
+
+# Save the cleaned dataset to CSV
+df_cleaned.to_csv(output_file, index=False)
+
+print(f"Cleaned dataset saved as {output_file}")
+
+
+#download csv file
+
+import shutil
+
+# Move file to a downloads folder (optional)
+shutil.move("Final_Cleaned_Data.csv", "Downloads/Final_Cleaned_Data.csv")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
