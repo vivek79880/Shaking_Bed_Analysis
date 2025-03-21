@@ -1,3 +1,5 @@
+#below is the python code for the analysis of the shaking bed air supply system.this code can be copied, can be used in IDE like VS CODE.
+
 import pandas as pd
 
 # Load the dataset
@@ -43,14 +45,14 @@ plt.title("Boxplot of Numerical Features (Outlier Detection)", fontsize=14, font
 plt.xlabel("Features", fontsize=12)
 plt.ylabel("Values", fontsize=12)
 
-plt.tight_layout()  # Prevent cropping
+plt.tight_layout()  # It will Prevent cropping
 plt.show()
 
 #finding outliers and removing them
 
 import numpy as np
 
-# Define a function to detect outliers using IQR
+# Define a function to detect outliers by using IQR
 def detect_outliers_iqr(df, column):
     Q1 = df[column].quantile(0.25)  # First quartile (25th percentile)
     Q3 = df[column].quantile(0.75)  # Third quartile (75th percentile)
